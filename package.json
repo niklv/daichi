@@ -1,0 +1,42 @@
+{
+  "name": "daichi",
+  "version": "1.0.0",
+  "description": "Comfort cloud API wrapper to control HVAC",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "homepage": "https://github.com/niklv/daichi",
+  "bugs": "https://github.com/niklv/daichi/issues",
+  "repository": {
+    "url": "https://github.com/niklv/daichi"
+  },
+  "files": [
+    "dist"
+  ],
+  "keywords": [
+    "daichi",
+    "daikin",
+    "hvac"
+  ],
+  "author": {
+    "name": "Nikita Lvov",
+    "email": "niklvov@gmail.com",
+    "url": "https://github.com/niklv"
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format cjs,esm --dts --dts-resolve --clean",
+    "lint": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/debug": "^4.1.12",
+    "esbuild": "^0.21.4",
+    "prettier": "^3.3.0",
+    "tsup": "^8.0.2",
+    "typescript": "^5.4.5"
+  },
+  "dependencies": {
+    "axios": "^1.7.2",
+    "debug": "^4.3.5",
+    "zod": "^3.23.8"
+  }
+}

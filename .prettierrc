@@ -1,0 +1,23 @@
+{
+  "singleQuote": true,
+  "semi": false,
+  "trailingComma": "none",
+  "arrowParens": "avoid",
+  "endOfLine": "auto",
+  "overrides": [
+    {
+      "files": [
+        ".*rc"
+      ],
+      "options": {
+        "parser": "json"
+      }
+    },
+    {
+      "files": "package-lock.json",
+      "options": {
+        "printWidth": 200
+      }
+    }
+  ]
+}
