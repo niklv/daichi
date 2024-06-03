@@ -8,7 +8,7 @@
   "homepage": "https://github.com/niklv/daichi",
   "bugs": "https://github.com/niklv/daichi/issues",
   "repository": {
-    "url": "https://github.com/niklv/daichi"
+    "url": "git+https://github.com/niklv/daichi.git"
   },
   "files": [
     "dist"
@@ -25,6 +25,7 @@
   },
   "scripts": {
     "build": "tsup src/index.ts --format cjs,esm --dts --dts-resolve --clean",
+    "prepack": "npm run build",
     "lint": "tsc --noEmit"
   },
   "devDependencies": {
