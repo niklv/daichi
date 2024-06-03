@@ -1,6 +1,6 @@
 {
   "name": "daichi",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Comfort cloud API wrapper to control HVAC",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
