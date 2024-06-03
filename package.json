@@ -7,6 +7,7 @@
   "types": "dist/index.d.ts",
   "homepage": "https://github.com/niklv/daichi",
   "bugs": "https://github.com/niklv/daichi/issues",
+  "license": "MIT",
   "repository": {
     "url": "git+https://github.com/niklv/daichi.git"
   },
