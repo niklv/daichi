@@ -238,8 +238,8 @@ export const DaichiControlSchema = z.object({
 export const DaichiMqttNotificationSchema = z.object({
   devices: z.array(
     z.union([
-      DeviceBaseSchema.extend(DeviceAdditonalFlags),
-      DeviceWithControlsSchema.extend(DeviceAdditonalFlags)
+      DeviceWithControlsSchema.extend(DeviceAdditonalFlags),
+      DeviceBaseSchema.extend(DeviceAdditonalFlags)
     ])
   ),
   presets: z.array(z.unknown()),
