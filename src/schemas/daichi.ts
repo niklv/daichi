@@ -74,9 +74,9 @@ export const DaichiBuildingDeviceSchema = z.object({
   vrfTitle: z.unknown().nullable(),
   deviceType: z.string(),
   subscription: z.unknown().nullable(),
-  subscriptionId: z.number(),
-  warrantyNumber: z.string(),
-  conditionerSerial: z.string()
+  subscriptionId: z.number().optional(),
+  warrantyNumber: z.string().optional(),
+  conditionerSerial: z.string().optional()
 })
 
 export const DaichiBuildingSchema = z.object({
@@ -199,10 +199,10 @@ export const DaichiDeviceSchema = DeviceWithControlsSchema.extend({
     isActive: z.boolean()
   }),
   indicators: z.unknown(),
-  subscriptionId: z.number(),
-  contractId: z.number(),
-  warrantyNumber: z.string(),
-  conditionerSerial: z.string(),
+  subscriptionId: z.number().optional(),
+  contractId: z.number().optional(),
+  warrantyNumber: z.string().optional(),
+  conditionerSerial: z.string().optional(),
   subscription: z.unknown(),
   tarificationInfo: z.object({
     tarificationType: z.string(),
@@ -215,7 +215,7 @@ export const DaichiDeviceSchema = DeviceWithControlsSchema.extend({
     labelType: z.string(),
     isLabelButtonVisible: z.boolean(),
     isLabelButtonInteractable: z.boolean()
-  }),
+  }).optional(),
   tarificationConflictPopUp: z.unknown()
 })
 

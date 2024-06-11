@@ -71,7 +71,7 @@ export class DaichiApi {
     if (this.mqttUser) return this.mqttUser
     const daichi = await this.api()
     const res = await daichi.get('user')
-    debug('user', res.data)
+    debug('user', JSON.stringify(res.data))
     const output = DaichiResponseSchema(DaichiUserSchema).parse(res.data)
     if (!output.done) throw new Error(output.message)
     this.mqttUser = {
@@ -84,7 +84,7 @@ export class DaichiApi {
   public async getBuildings() {
     const daichi = await this.api()
     const res = await daichi.get('buildings')
-    debug('buildings', res.data)
+    debug('buildings', JSON.stringify(res.data))
     const output = DaichiResponseSchema(z.array(DaichiBuildingSchema)).parse(
       res.data
     )
@@ -145,7 +145,7 @@ export class DaichiApi {
         conflictResolveData: null
       }
     )
-    debug('control device response', res.data)
+    debug('control device response', JSON.stringify(res.data))
     const output = DaichiResponseSchema(DaichiControlSchema).parse(res.data)
     if (!output.done) throw new Error(output.message)
     return output.data
@@ -159,6 +159,7 @@ export class DaichiApi {
   public async getDeviceState(devId: number) {
     const daichi = await this.api()
     const res = await daichi.get(`devices/${devId}`)
+    debug('control state response', JSON.stringify(res.data))
     const output = DaichiResponseSchema(DaichiDeviceSchema).parse(res.data)
     if (!output.done) throw new Error(output.message)
     return output.data
