@@ -44,7 +44,7 @@ for (const device of await daichi.getDevices()) {
 | `baseUrl`  | `string` | `https://web.daichicloud.ru/api/v4/`   | Must end with a slash  |
 | `clientId` | `string` | `sOJO7B6SqgaKudTfCzqLAy540cCuDzpI`     | OAuth client id        |
 
-The constructor logs in immediately (password grant). The access token is fetched once and reused by every method for the lifetime of the instance. It is never refreshed, so if the cloud starts rejecting calls after a long uptime, create a new instance.
+The first call logs in (password grant). The access token is fetched once and reused by every later call for the lifetime of the instance. It is never refreshed, so if the cloud starts rejecting calls after a long uptime, create a new instance.
 
 ### `getBuildings()`
 
@@ -133,9 +133,10 @@ Known topics:
 
 ## Errors
 
-- The cloud answered but refused the request: the promise rejects with an `Error` whose message is the cloud's own message, for example a wrong password or an offline device.
+- The cloud answered but refused the request: the promise rejects with an `Error` whose message is the cloud's own message, for example a wrong password or an offline device. This holds for 4xx answers too.
 - The cloud answered with an unexpected shape: the promise rejects with a `ZodError` from zod.
-- HTTP 5xx or a network failure: the promise rejects with an `AxiosError` from axios.
+- HTTP 5xx: the promise rejects with an `Error` naming the status.
+- Network failure: the promise rejects with a `FetchError` from [ofetch](https://github.com/unjs/ofetch).
 
 ## Types
 
@@ -150,7 +151,7 @@ type DaichiControl = Awaited<ReturnType<DaichiApi['controlDevice']>>
 
 ## Debug logging
 
-Set `DEBUG=daichi` to print every request and response through [debug](https://www.npmjs.com/package/debug).
+Set `DEBUG=daichi` to log every cloud response: method, URL, status and body. Access tokens, the account token and the MQTT password are masked. For the wire level, Node's own `NODE_DEBUG=fetch` works as well.
 
 ## Development
 

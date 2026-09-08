@@ -1,21 +1,33 @@
-import axios, { type AxiosInstance } from 'axios'
 import createDebug from 'debug'
+import { type $Fetch, ofetch } from 'ofetch'
 import { z } from 'zod'
 import {
   DaichiBuildingSchema,
-  DaichiDeviceSchema,
   DaichiControlSchema,
-  daichiResponseSchema,
+  DaichiDeviceSchema,
   DaichiTokenSchema,
-  DaichiUserSchema
+  DaichiUserSchema,
+  daichiResponseSchema
 } from './schemas/daichi'
 import type { MqttUser } from './types'
 
 const debug = createDebug('daichi')
 
+/** Response envelope with the payload left for the caller's schema */
+const envelope = daichiResponseSchema(z.unknown())
+
+const SECRET_KEYS = new Set(['access_token', 'token', 'password'])
+
+/** JSON for the debug log with credentials masked at any depth */
+const redacted = (value: unknown) =>
+  JSON.stringify(value, (key, v: unknown) => (SECRET_KEYS.has(key) ? '[redacted]' : v))
+
 export class DaichiApi {
-  private axiosInstance: AxiosInstance | null = null
-  private readonly axiosInitPromise: Promise<AxiosInstance> | null = null
+  /** Unauthenticated client, unwraps the cloud's response envelope */
+  private readonly cloud: $Fetch
+  /** Same client with the bearer token, logs in on first use */
+  private readonly client: $Fetch
+  private token: Promise<string> | null = null
   private mqttUser: MqttUser | null = null
 
   constructor(
@@ -24,42 +36,55 @@ export class DaichiApi {
     protected readonly daichiApi = 'https://web.daichicloud.ru/api/v4/',
     protected readonly clientId = 'sOJO7B6SqgaKudTfCzqLAy540cCuDzpI'
   ) {
-    this.axiosInitPromise = this.api()
-  }
-
-  /**
-   * Init axios instance with token
-   */
-  private async api(): Promise<AxiosInstance> {
-    if (this.axiosInstance) return this.axiosInstance
-    if (this.axiosInitPromise) return this.axiosInitPromise
-    debug('init axios instance')
-    const token = await this.getToken()
-    this.axiosInstance = axios.create({
+    this.cloud = ofetch.create({
       baseURL: this.daichiApi,
-      headers: {
-        Authorization: `Bearer ${token}`
-      },
-      validateStatus: number => number < 500
+      // without an explicit json accept the cloud redirects a bad token to its html login page
+      headers: { accept: 'application/json' },
+      redirect: 'error',
+      // 4xx answers carry the usual envelope, let them through to the hook
+      ignoreResponseError: true,
+      retry: 0,
+      onResponse({ request, options, response }) {
+        debug(
+          '%s %s -> %d %s',
+          options.method ?? 'GET',
+          typeof request === 'string' ? request : request.url,
+          response.status,
+          redacted(response._data)
+        )
+        if (response.status >= 500)
+          throw new Error(`Daichi cloud responded with HTTP ${response.status}`)
+        const output = envelope.parse(response._data)
+        if (!output.done) throw new Error(output.message)
+        response._data = output.data
+      }
     })
-    return this.axiosInstance
+    this.client = this.cloud.create({
+      onRequest: async ({ options }) => {
+        // forget a failed login so the next call tries again
+        this.token ??= this.login().catch((err: unknown) => {
+          this.token = null
+          throw err
+        })
+        options.headers.set('Authorization', `Bearer ${await this.token}`)
+      }
+    })
   }
 
   /**
    * Login into 'Daichi Comfort Cloud' and return access_token
    */
-  private async getToken() {
-    const res = await axios.post(`${this.daichiApi}token`, {
-      grant_type: 'password',
-      email: this.username,
-      password: this.password,
-      clientId: this.clientId
+  private async login() {
+    const data = await this.cloud<unknown>('token', {
+      method: 'POST',
+      body: {
+        grant_type: 'password',
+        email: this.username,
+        password: this.password,
+        clientId: this.clientId
+      }
     })
-    debug('token response', res.data)
-    const output = daichiResponseSchema(DaichiTokenSchema).parse(res.data)
-    if (!output.done) throw new Error(output.message)
-    const accessToken = output.data.access_token
-    debug('api token', accessToken)
+    const { access_token: accessToken } = DaichiTokenSchema.parse(data)
     if (!accessToken) throw new Error('No token received')
     return accessToken
   }
@@ -69,25 +94,13 @@ export class DaichiApi {
    */
   public async getMqttUserInfo() {
     if (this.mqttUser) return this.mqttUser
-    const daichi = await this.api()
-    const res = await daichi.get('user')
-    debug('user', JSON.stringify(res.data))
-    const output = daichiResponseSchema(DaichiUserSchema).parse(res.data)
-    if (!output.done) throw new Error(output.message)
-    this.mqttUser = {
-      ...output.data.mqttUser,
-      id: output.data.id
-    }
+    const user = DaichiUserSchema.parse(await this.client<unknown>('user'))
+    this.mqttUser = { ...user.mqttUser, id: user.id }
     return this.mqttUser
   }
 
   public async getBuildings() {
-    const daichi = await this.api()
-    const res = await daichi.get('buildings')
-    debug('buildings', JSON.stringify(res.data))
-    const output = daichiResponseSchema(z.array(DaichiBuildingSchema)).parse(res.data)
-    if (!output.done) throw new Error(output.message)
-    return output.data
+    return z.array(DaichiBuildingSchema).parse(await this.client<unknown>('buildings'))
   }
 
   /**
@@ -121,16 +134,15 @@ export class DaichiApi {
         ? { functionId, value: val, parameters: null }
         : { functionId, isOn: val, parameters: null }
 
-    const daichi = await this.api()
-    const res = await daichi.post(`devices/${deviceId}/ctrl?ignoreConflicts=false`, {
-      cmdId: DaichiApi.getRandomIntInclusive(0, 99_999_999),
-      value: deviceFunctionControl,
-      conflictResolveData: null
+    const data = await this.client<unknown>(`devices/${deviceId}/ctrl?ignoreConflicts=false`, {
+      method: 'POST',
+      body: {
+        cmdId: DaichiApi.getRandomIntInclusive(0, 99_999_999),
+        value: deviceFunctionControl,
+        conflictResolveData: null
+      }
     })
-    debug('control device response', JSON.stringify(res.data))
-    const output = daichiResponseSchema(DaichiControlSchema).parse(res.data)
-    if (!output.done) throw new Error(output.message)
-    return output.data
+    return DaichiControlSchema.parse(data)
   }
 
   /**
@@ -139,12 +151,7 @@ export class DaichiApi {
    * @returns
    */
   public async getDeviceState(devId: number) {
-    const daichi = await this.api()
-    const res = await daichi.get(`devices/${devId}`)
-    debug('control state response', JSON.stringify(res.data))
-    const output = daichiResponseSchema(DaichiDeviceSchema).parse(res.data)
-    if (!output.done) throw new Error(output.message)
-    return output.data
+    return DaichiDeviceSchema.parse(await this.client<unknown>(`devices/${devId}`))
   }
 
   /**

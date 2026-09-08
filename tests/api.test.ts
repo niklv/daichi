@@ -1,3 +1,4 @@
+import { FetchError } from 'ofetch'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { ZodError } from 'zod'
 import { DaichiApi } from '../src/api'
@@ -34,6 +35,15 @@ describe('authentication', () => {
     ])
   })
 
+  it('logs in without an authorization header', async () => {
+    server.route('GET', 'buildings', ok([]))
+
+    await login().getBuildings()
+
+    const [request] = server.requestsTo('POST', 'token')
+    expect(request?.headers.authorization).toBeUndefined()
+  })
+
   it('sends the access token as a bearer header on API calls', async () => {
     server.route('GET', 'buildings', ok([]))
 
@@ -41,6 +51,50 @@ describe('authentication', () => {
 
     const [request] = server.requestsTo('GET', 'buildings')
     expect(request?.headers.authorization).toBe('Bearer tok-123')
+  })
+
+  it('does not log in until the first call', async () => {
+    login()
+    await new Promise(resolve => setTimeout(resolve, 50))
+
+    expect(server.requestsTo('POST', 'token')).toHaveLength(0)
+  })
+
+  it('logs in once for concurrent first calls', async () => {
+    server.route('GET', 'buildings', ok([]))
+    server.route('GET', 'user', ok(userInfo))
+    const api = login()
+
+    await Promise.all([api.getBuildings(), api.getMqttUserInfo(), api.getBuildings()])
+
+    expect(server.requestsTo('POST', 'token')).toHaveLength(1)
+  })
+
+  it('asks the cloud for json so an invalid token yields 401 instead of a redirect', async () => {
+    server.route('GET', 'buildings', ok([]))
+
+    await login().getBuildings()
+
+    const accepts = server.requests.map(r => r.headers.accept)
+    expect(accepts).toEqual(['application/json', 'application/json'])
+  })
+
+  it('rejects instead of following a redirect', async () => {
+    server.route('GET', 'buildings', '', 302)
+
+    await expect(login().getBuildings()).rejects.toBeInstanceOf(FetchError)
+  })
+
+  it('retries the login on the next call after a failed one', async () => {
+    server.route('POST', 'token', fail('Try later', 'busy'), 503)
+    server.route('GET', 'buildings', ok([]))
+    const api = login()
+
+    await expect(api.getBuildings()).rejects.toThrow(/503/)
+    server.route('POST', 'token', ok({ access_token: 'tok-123' }))
+
+    await expect(api.getBuildings()).resolves.toEqual([])
+    expect(server.requestsTo('POST', 'token')).toHaveLength(2)
   })
 
   it('logs in once and reuses the token across calls', async () => {
@@ -59,6 +113,18 @@ describe('authentication', () => {
     server.route('POST', 'token', fail('Wrong login or password'))
 
     await expect(login().getBuildings()).rejects.toThrow('Wrong login or password')
+  })
+
+  it('rejects with the server message when login is refused with an error status', async () => {
+    server.route('POST', 'token', fail('Wrong login or password'), 401)
+
+    await expect(login().getBuildings()).rejects.toThrow('Wrong login or password')
+  })
+
+  it('rejects with the HTTP status when the cloud answers with a server error', async () => {
+    server.route('GET', 'buildings', fail('Internal error', 'server_error'), 503)
+
+    await expect(login().getBuildings()).rejects.toThrow(/503/)
   })
 
   it('rejects when the server returns an empty access token', async () => {

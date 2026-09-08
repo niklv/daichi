@@ -105,6 +105,7 @@
     "method-signature-style": ["error", "method"],
     "node/no-sync": "off",
     "unicorn/max-nested-calls": ["error", { "max": 6 }],
-    "eslint/one-var": "off"
+    "eslint/one-var": "off",
+    "no-underscore-dangle": ["warn", { "allow": ["_data"] }]
   }
 }
