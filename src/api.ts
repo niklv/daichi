@@ -1,28 +1,28 @@
 import axios, { type AxiosInstance } from 'axios'
-import Debug from 'debug'
-import type { MqttUser } from './types'
+import createDebug from 'debug'
+import { z } from 'zod'
 import {
   DaichiBuildingSchema,
   DaichiDeviceSchema,
   DaichiControlSchema,
-  DaichiResponseSchema,
+  daichiResponseSchema,
   DaichiTokenSchema,
   DaichiUserSchema
 } from './schemas/daichi'
-import { z } from 'zod'
+import type { MqttUser } from './types'
 
-const debug = Debug('daichi')
+const debug = createDebug('daichi')
 
 export class DaichiApi {
   private axiosInstance: AxiosInstance | null = null
-  private axiosInitPromise: Promise<AxiosInstance> | null = null
+  private readonly axiosInitPromise: Promise<AxiosInstance> | null = null
   private mqttUser: MqttUser | null = null
 
   constructor(
     protected readonly username: string,
     protected readonly password: string,
-    protected readonly daichiApi: string = 'https://web.daichicloud.ru/api/v4/',
-    protected readonly clientId: string = 'sOJO7B6SqgaKudTfCzqLAy540cCuDzpI'
+    protected readonly daichiApi = 'https://web.daichicloud.ru/api/v4/',
+    protected readonly clientId = 'sOJO7B6SqgaKudTfCzqLAy540cCuDzpI'
   ) {
     this.axiosInitPromise = this.api()
   }
@@ -32,7 +32,7 @@ export class DaichiApi {
    */
   private async api(): Promise<AxiosInstance> {
     if (this.axiosInstance) return this.axiosInstance
-    if (this.axiosInitPromise) return await this.axiosInitPromise
+    if (this.axiosInitPromise) return this.axiosInitPromise
     debug('init axios instance')
     const token = await this.getToken()
     this.axiosInstance = axios.create({
@@ -49,14 +49,14 @@ export class DaichiApi {
    * Login into 'Daichi Comfort Cloud' and return access_token
    */
   private async getToken() {
-    const res = await axios.post(this.daichiApi + 'token', {
+    const res = await axios.post(`${this.daichiApi}token`, {
       grant_type: 'password',
       email: this.username,
       password: this.password,
       clientId: this.clientId
     })
     debug('token response', res.data)
-    const output = DaichiResponseSchema(DaichiTokenSchema).parse(res.data)
+    const output = daichiResponseSchema(DaichiTokenSchema).parse(res.data)
     if (!output.done) throw new Error(output.message)
     const accessToken = output.data.access_token
     debug('api token', accessToken)
@@ -72,7 +72,7 @@ export class DaichiApi {
     const daichi = await this.api()
     const res = await daichi.get('user')
     debug('user', JSON.stringify(res.data))
-    const output = DaichiResponseSchema(DaichiUserSchema).parse(res.data)
+    const output = daichiResponseSchema(DaichiUserSchema).parse(res.data)
     if (!output.done) throw new Error(output.message)
     this.mqttUser = {
       ...output.data.mqttUser,
@@ -85,9 +85,7 @@ export class DaichiApi {
     const daichi = await this.api()
     const res = await daichi.get('buildings')
     debug('buildings', JSON.stringify(res.data))
-    const output = DaichiResponseSchema(z.array(DaichiBuildingSchema)).parse(
-      res.data
-    )
+    const output = daichiResponseSchema(z.array(DaichiBuildingSchema)).parse(res.data)
     if (!output.done) throw new Error(output.message)
     return output.data
   }
@@ -117,36 +115,20 @@ export class DaichiApi {
    * @param val Value: number or boolean, depending on function
    * @returns
    */
-  public async controlDevice(
-    deviceId: number,
-    functionId: number,
-    val: number | boolean
-  ) {
-    let deviceFunctionControl
-    if (typeof val === 'number')
-      deviceFunctionControl = {
-        functionId,
-        value: val,
-        parameters: null
-      }
-    else
-      deviceFunctionControl = {
-        functionId,
-        isOn: val,
-        parameters: null
-      }
+  public async controlDevice(deviceId: number, functionId: number, val: number | boolean) {
+    const deviceFunctionControl =
+      typeof val === 'number'
+        ? { functionId, value: val, parameters: null }
+        : { functionId, isOn: val, parameters: null }
 
     const daichi = await this.api()
-    const res = await daichi.post(
-      `devices/${deviceId}/ctrl?ignoreConflicts=false`,
-      {
-        cmdId: DaichiApi.getRandomIntInclusive(0, 99999999),
-        value: deviceFunctionControl,
-        conflictResolveData: null
-      }
-    )
+    const res = await daichi.post(`devices/${deviceId}/ctrl?ignoreConflicts=false`, {
+      cmdId: DaichiApi.getRandomIntInclusive(0, 99_999_999),
+      value: deviceFunctionControl,
+      conflictResolveData: null
+    })
     debug('control device response', JSON.stringify(res.data))
-    const output = DaichiResponseSchema(DaichiControlSchema).parse(res.data)
+    const output = daichiResponseSchema(DaichiControlSchema).parse(res.data)
     if (!output.done) throw new Error(output.message)
     return output.data
   }
@@ -160,7 +142,7 @@ export class DaichiApi {
     const daichi = await this.api()
     const res = await daichi.get(`devices/${devId}`)
     debug('control state response', JSON.stringify(res.data))
-    const output = DaichiResponseSchema(DaichiDeviceSchema).parse(res.data)
+    const output = daichiResponseSchema(DaichiDeviceSchema).parse(res.data)
     if (!output.done) throw new Error(output.message)
     return output.data
   }
@@ -172,8 +154,8 @@ export class DaichiApi {
    * @returns Random integer
    */
   private static getRandomIntInclusive(min: number, max: number) {
-    min = Math.ceil(min)
-    max = Math.floor(max)
-    return Math.floor(Math.random() * (max - min + 1)) + min
+    const lower = Math.ceil(min)
+    const upper = Math.floor(max)
+    return Math.floor(Math.random() * (upper - lower + 1)) + lower
   }
 }

@@ -1,0 +1,11 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  "singleQuote": true,
+  "semi": false,
+  "trailingComma": "none",
+  "arrowParens": "avoid",
+  "sortImports": {
+    "newlinesBetween": false
+  },
+  "ignorePatterns": ["dist", "README.md", ".github", "package-lock.json"]
+}
